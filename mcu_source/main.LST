@@ -1,0 +1,274 @@
+C166 COMPILER V7.53.0.0, MAIN                                                              10/15/2016 15:44:58 PAGE 1   
+
+
+C166 COMPILER V7.53.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN main.OBJ
+COMPILER INVOKED BY: C:\Program Files\Keil\C166\BIN\C166.EXE main.c COMPACT BROWSE NOFIXDPP MOD167 DEBUG TABS(2) 
+
+ stmt lvl     source
+
+    1         #include <stdio.h>                /* standard I/O .h-file              */
+    2         #include <reg167.h>               /* special function register 80C167  */
+    3         #include "apd_functions.h"
+    4         #include "tdc_functions.h"
+    5         #include "measure_dist.h"
+    6         #include "timer.h"
+    7         
+    8         //after initialization
+    9         //CSSEL == "11" => CS4-CS0 enabled
+   10         //SALSEL == "00" => A19-A16 enabled
+   11         //CLKCFG == "110" => PLLx3
+   12         //cs1 enabled - see start167.a66
+   13         
+   14         /****************/
+   15         /* main program */
+   16         /****************/
+   17         
+   18         #define LENGTH 100
+   19         
+   20         unsigned long i;
+   21         unsigned short k;
+   22         
+   23         unsigned char byte1;
+   24         volatile unsigned long  tmp_val;
+   25         volatile unsigned long  tmp_val2;
+   26         
+   27         
+   28         extern unsigned short APD_amplitude;
+   29         extern unsigned short cur_dist_value;
+   30         extern unsigned short set_motor_period;//needed motor speed (needed period of encoder)
+   31         extern unsigned char start_send_header;//time to send header
+   32         
+   33         
+   34         void rx_command_handler(unsigned char command, unsigned char data);
+   35         void wait (void) { } /* wait function (empty) */
+   36         
+   37         unsigned char  rx_mode = 0;
+   38         unsigned char  rx_idle_time = 0;
+   39         
+   40         
+   41         
+   42         void blink(void)
+   43         {
+   44  1          P8 |= (1<<2)|(1<<3); /* switch on LED (P2.0 = 1) */
+   45  1          for (i = 0; i < 100000; i++) wait(); /* delay for 10000 counts */
+   46  1          P8 &= ~((1<<2)|(1<<3)); /* switch off LED (P2.0 = 0) */
+   47  1          for (i = 0; i < 100000; i++) wait(); /* delay for 10000 counts */ 
+   48  1      }
+   49         
+   50         
+   51         void do_measure_APD_temp(void)
+   52         {
+   53  1        unsigned char i;
+   54  1        unsigned short temper_apd[3];
+   55  1        
+C166 COMPILER V7.53.0.0, MAIN                                                              10/15/2016 15:44:58 PAGE 2   
+
+   56  1        for (i=0;i<3;i++)
+   57  1        {
+   58  2            ADCON = 9;  // select AN0 A/D input,single conv.
+   59  2            ADST = 1;   //start ADC conversion
+   60  2            while (ADBSY) { ; }  // wait for A/D result
+   61  2            temper_apd[i] = ADDAT & 0x03FF;    // result of A/D process
+   62  2        }
+   63  1        printf ("%d;%d;%d\r\n",temper_apd[0],temper_apd[1],temper_apd[2]);
+   64  1      }
+   65         
+   66         void main (void)  {               /* execution starts here               */
+   67  1                                        /* initialize the serial interface     */
+   68  1      #ifndef MCB167          /* do not initialize if you use Monitor-166      */  
+   69  1        P3  |= 0x0400;        /* SET PORT 3.10 OUTPUT LATCH (TXD)              */
+   70  1        DP3 |= 0x0400;        /* SET PORT 3.10 DIRECTION CONTROL (TXD OUTPUT)  */
+   71  1        DP3 &= 0xF7FF;        /* RESET PORT 3.11 DIRECTION CONTROL (RXD INPUT) */
+   72  1        //S0TIC = 0x80;         /* SET TRANSMIT INTERRUPT FLAG                   */
+   73  1        //S0RIC = 0x00;         /* DELETE RECEIVE INTERRUPT FLAG                 */
+   74  1        //S0BG  = 0x6A;         /* SET BAUDRATE TO 9600 BAUD                     */
+   75  1        S0BG = 1;//baud register
+   76  1        S0BRS = 0;//Baudrate Selection Bit
+   77  1        
+   78  1        S0TIC = (0xA<<2) | (2) | 0x80;//ILVL = 0xA + GLVL = 2 - uart tx
+   79  1        S0RIC = (0x5<<2) | (0) | (1<<6);//ILVL = 0x5 + GLVL  + enable rx int= 0 - uart rx
+   80  1        
+   81  1        S0CON = 0x8011;       /* SET SERIAL MODE                               */
+   82  1      #endif
+   83  1        
+   84  1        //p2.4 - RAM2_CE
+   85  1        DP2|= (1<<4); //output
+   86  1        P2&= ~(1<<4);//0 - ram2 not selected
+   87  1        
+   88  1        DP8|= (1<<2)|(1<<3); /* bits 0 – 7 : outputs */
+   89  1        ODP8 = 0x0000; /* output driver : push/pull */
+   90  1        
+   91  1        DP2|= (1<<13); //laser
+   92  1        ODP2 = 0x0000; /* output driver : push/pull */
+   93  1        
+   94  1        init_apd_module();
+   95  1        init_timer2_3();
+   96  1        init_timer4();
+   97  1        
+   98  1        for (i=0;i<10000;i++) wait();
+   99  1        init_tdc();
+  100  1      
+  101  1        printf ("TEST v8\n");
+  102  1        
+  103  1        //set_dac_value(2900);
+  104  1        //set_dac_value(2900);
+  105  1        
+  106  1        set_dac_value(2700);
+  107  1        set_dac_value(2700);
+  108  1        
+  109  1        do_reset_receiver();
+  110  1        
+  111  1        tmp_val = tdc_read_data(14);
+  112  1        printf ("val14:%ld\n", tmp_val);
+  113  1        
+  114  1        tmp_val = tdc_read_data(1);
+  115  1        printf ("val1:%lX\n", tmp_val);
+  116  1        if (tmp_val == 0x0620620) printf ("1-OK\n");
+  117  1        
+C166 COMPILER V7.53.0.0, MAIN                                                              10/15/2016 15:44:58 PAGE 3   
+
+  118  1        IEN = 1; // set global interrupt enable flag
+  119  1        
+  120  1        
+  121  1        while(1)
+  122  1        {
+  123  2          if (start_send_header == 1)
+  124  2          {
+  125  3            printf("AbCdEf");//header
+  126  3            start_send_header = 0;
+  127  3            rx_idle_time++;
+  128  3            if (rx_idle_time > 6)//reset rx_mode if there was no data for a long time
+  129  3            {
+  130  4              rx_idle_time = 0;
+  131  4              rx_mode = 0;
+  132  4            }
+  133  3          }
+  134  2        }                         
+  135  1      }     
+  136         
+  137         
+  138         //uart rx interrupt
+  139         static void rx_interrupt (void) interrupt 0x2B
+  140         {
+  141  1        static unsigned char  command = 0;
+  142  1        unsigned char rx_byte = (unsigned char)S0RBUF;//received byte
+  143  1        
+  144  1        rx_idle_time = 0;
+  145  1        
+  146  1        switch (rx_mode)
+  147  1        {
+  148  2          case 0: 
+  149  2          {
+  150  3            if (rx_byte == 65) {rx_mode++;} else {rx_mode = 0;}//A
+  151  3            command = 0;
+  152  3            P8 |= (1<<2)|(1<<3); // switch on LED (P2.0 = 1)
+  153  3            break;
+  154  3          }
+  155  2          case 1: 
+  156  2          {
+  157  3            if (rx_byte == 66) {rx_mode++;} else {rx_mode = 0;}//B
+  158  3            command = 0;
+  159  3            break;
+  160  3          }
+  161  2          case 2: 
+  162  2          {
+  163  3            if (rx_byte == 67) {rx_mode++;} else {rx_mode = 0;}//C
+  164  3            command = 0;
+  165  3            break;
+  166  3          }
+  167  2          case 3: 
+  168  2          {
+  169  3            if (rx_byte == 68) {rx_mode++;} else {rx_mode = 0;}//D
+  170  3            command = 0;
+  171  3            break;
+  172  3          }
+  173  2          
+  174  2          case 4://command
+  175  2          {
+  176  3            if (rx_byte == 65)
+  177  3            {
+  178  4              command = 0;
+  179  4              rx_mode = 1;
+C166 COMPILER V7.53.0.0, MAIN                                                              10/15/2016 15:44:58 PAGE 4   
+
+  180  4              break;
+  181  4            }
+  182  3            else
+  183  3            {
+  184  4              command = rx_byte;
+  185  4              rx_mode = 5;
+  186  4              break;
+  187  4            }
+  188  3          }
+  189  2          case 5: //data received
+  190  2          {
+  191  3            rx_command_handler(command, rx_byte);
+  192  3            rx_mode = 0;
+  193  3            command = 0;
+  194  3            P8 &= ~((1<<2)|(1<<3)); // switch off LED (P2.0 = 0)
+  195  3            break;
+  196  3          }
+  197  2          default: {rx_mode = 0; command = 0; break;}
+  198  2        }
+  199  1      }
+  200         
+  201         void rx_command_handler(unsigned char command, unsigned char data)
+  202         {
+  203  1        unsigned short voltage = 0;
+  204  1        switch (command)
+  205  1        {
+  206  2          case 66: //B - set speed
+  207  2          {
+  208  3            set_motor_period = (unsigned short)data;
+  209  3            if (set_motor_period < 187) set_motor_period = 187;
+  210  3            break;
+  211  3          }
+  212  2          case 67: //C - set voltage
+  213  2          {
+  214  3            if (data > 150) data = 140;//in volts
+  215  3            voltage = (unsigned short)data * 20;
+  216  3            set_dac_value(voltage);
+  217  3            set_dac_value(voltage);
+  218  3            break;
+  219  3          }
+  220  2          default: break;
+  221  2        }
+  222  1      }
+  223         
+  224         
+  225         
+  226         //    printf("AbCdEf");//header
+  227         //    for (k=0;k<720;k++)
+  228         //    {
+  229         //      S0TBUF = (unsigned char)(k>>8);
+  230         //      while(S0TIR == 0){}
+  231         //      S0TIR=0;
+  232         //      S0TBUF = (unsigned char)(k&0x00ff);
+  233         //      while(S0TIR == 0){}
+  234         //      S0TIR=0;
+  235         //    }
+  236         //    for (i=0;i<10000;i++) wait();
+
+
+MODULE INFORMATION:   INITIALIZED  UNINITIALIZED
+  CODE SIZE        =         770     --------
+  NEAR-CONST SIZE  =    --------     --------
+C166 COMPILER V7.53.0.0, MAIN                                                              10/15/2016 15:44:58 PAGE 5   
+
+  FAR-CONST SIZE   =          54     --------
+  HUGE-CONST SIZE  =    --------     --------
+  XHUGE-CONST SIZE =    --------     --------
+  NEAR-DATA SIZE   =          18     --------
+  FAR-DATA SIZE    =    --------     --------
+  XHUGE-DATA SIZE  =    --------     --------
+  IDATA-DATA SIZE  =    --------     --------
+  SDATA-DATA SIZE  =    --------     --------
+  BDATA-DATA SIZE  =    --------     --------
+  HUGE-DATA SIZE   =    --------     --------
+  BIT SIZE         =    --------     --------
+  INIT'L SIZE      =          18     --------
+END OF MODULE INFORMATION.
+
+
+C166 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

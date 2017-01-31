@@ -1,0 +1,93 @@
+C166 COMPILER V7.53.0.0, APD_FUNCTIONS                                                     10/15/2016 15:44:58 PAGE 1   
+
+
+C166 COMPILER V7.53.0.0, COMPILATION OF MODULE APD_FUNCTIONS
+OBJECT MODULE PLACED IN apd_functions.OBJ
+COMPILER INVOKED BY: C:\Program Files\Keil\C166\BIN\C166.EXE apd_functions.c COMPACT BROWSE NOFIXDPP MOD167 DEBUG TABS(2
+                    -) 
+
+ stmt lvl     source
+
+    1         #include "apd_functions.h"
+    2         #include <reg167.h>               /* special function register 80C167  */
+    3         
+    4         void init_apd_module(void)
+    5         {
+    6  1        //BASE5 - p2.6 //0 - do receiver reset
+    7  1        DP2|= (1<<6); //output
+    8  1        P2&= ~(1<<6);//0  - start reset
+    9  1        
+   10  1        //CLK - p7.5
+   11  1        DP7|= (1<<5); //output
+   12  1        P7&= ~(1<<5);//low
+   13  1        
+   14  1        //DI - p7.6 //slave data input
+   15  1        DP7|= (1<<6); //output
+   16  1        P7&= ~(1<<6);//low
+   17  1        
+   18  1        //CS2 - p3.4 - DAC (low active)
+   19  1        DP3|= (1<<4);//output
+   20  1        P3|= (1<<4);//high
+   21  1        
+   22  1        //CS - p7.4 - EEPROM (high active)
+   23  1        DP7|= (1<<4);//output
+   24  1        P7&= ~(1<<4);//low
+   25  1        
+   26  1        //ADC
+   27  1        P5DIDIS|= (1<<0);//disable digital p5.0
+   28  1      }
+   29         
+   30         void do_reset_receiver(void)
+   31         {
+   32  1          P2&= ~(1<<6);//0  - start reset rx
+   33  1          //__asm { nop    ; another nop}
+   34  1          //__asm { nop    ; another nop}
+   35  1          P2|= (1<<6);//1  - start rx
+   36  1      }
+   37         
+   38         
+   39         //LTC1451
+   40         //msb first
+   41         void set_dac_value(unsigned int value)
+   42         {
+   43  1        unsigned char i;
+   44  1        
+   45  1        for (i=0;i<12;i++)
+   46  1        {
+   47  2          if ((value & (1<<11)) != 0) P7|= (1<<6); else P7&= ~(1<<6);//set data out
+   48  2          __asm { nop    ; another nop}
+   49  2          __asm { nop    ; another nop}
+   50  2          P7|= (1<<5);//clk high
+   51  2          __asm { nop    ; another nop}
+   52  2          __asm { nop    ; another nop}
+   53  2          P7&= ~(1<<5);//clk low
+   54  2          value =  value<<1;
+C166 COMPILER V7.53.0.0, APD_FUNCTIONS                                                     10/15/2016 15:44:58 PAGE 2   
+
+   55  2        }
+   56  1        P3|= (1<<4);//CS2 high
+   57  1        __asm { nop    ; another nop}
+   58  1        __asm { nop    ; another nop}
+   59  1        P3&= ~(1<<4);//CS2 low
+   60  1      }
+
+
+MODULE INFORMATION:   INITIALIZED  UNINITIALIZED
+  CODE SIZE        =         112     --------
+  NEAR-CONST SIZE  =    --------     --------
+  FAR-CONST SIZE   =    --------     --------
+  HUGE-CONST SIZE  =    --------     --------
+  XHUGE-CONST SIZE =    --------     --------
+  NEAR-DATA SIZE   =    --------     --------
+  FAR-DATA SIZE    =    --------     --------
+  XHUGE-DATA SIZE  =    --------     --------
+  IDATA-DATA SIZE  =    --------     --------
+  SDATA-DATA SIZE  =    --------     --------
+  BDATA-DATA SIZE  =    --------     --------
+  HUGE-DATA SIZE   =    --------     --------
+  BIT SIZE         =    --------     --------
+  INIT'L SIZE      =    --------     --------
+END OF MODULE INFORMATION.
+
+
+C166 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

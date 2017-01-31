@@ -1,0 +1,97 @@
+C166 COMPILER V7.53.0.0, MEASURE_DIST                                                      10/15/2016 15:44:58 PAGE 1   
+
+
+C166 COMPILER V7.53.0.0, COMPILATION OF MODULE MEASURE_DIST
+OBJECT MODULE PLACED IN measure_dist.OBJ
+COMPILER INVOKED BY: C:\Program Files\Keil\C166\BIN\C166.EXE measure_dist.c COMPACT BROWSE NOFIXDPP MOD167 DEBUG TABS(2)
+                    - 
+
+ stmt lvl     source
+
+    1         #include "measure_dist.h"
+    2         #include "tdc_functions.h"
+    3         #include "apd_functions.h"
+    4         #include <reg167.h>               /* special function register 80C167  */
+    5         #include "corr_table_file.h"
+    6         
+    7         unsigned short APD_amplitude;
+    8         
+    9         unsigned short cur_dist_value;
+   10         
+   11         extern unsigned short FIFO0;
+   12         
+   13         #define CORRECTION_TABLE_LENGTH 820
+   14         #define CORRECTION_TABLE_START  30
+   15         
+   16         void do_measure(void)
+   17         {
+   18  1        P2|= (1<<6);//1  - enable auto-load
+   19  1        //P2&= ~(1<<6);//0  - RESET rx trigger (off auto-load)
+   20  1        
+   21  1        tdc_start_measure();//enable TDC capture
+   22  1        __asm { nop    ; another nop}
+   23  1        laser_pulse();
+   24  1        P2&= ~(1<<6);//0  - RESET rx trigger (off auto-load)  
+   25  1        ADCON = 0;  // select AN0 A/D input,single conv.
+   26  1        ADST = 1;   //start ADC conversion
+   27  1      
+   28  1        tdc_stop_measure();//disable TDC capture
+   29  1        tdc_read_measurements();
+   30  1      
+   31  1        while (ADBSY) { ; }  // wait for A/D result
+   32  1        APD_amplitude = ADDAT & 0x03FF;    // result of A/D process
+   33  1      
+   34  1      
+   35  1        if (FIFO0 == 0) cur_dist_value = 2;//error
+   36  1        else
+   37  1        //if(1)
+   38  1        {
+   39  2          cur_dist_value = FIFO0;
+   40  2          cur_dist_value-= get_correction(APD_amplitude);
+   41  2        } 
+   42  1      }
+   43         
+   44         void laser_pulse(void)
+   45         {
+   46  1          P2&= ~(1<<13);
+   47  1          P2|= (1<<13);//laser
+   48  1      }
+   49         
+   50         
+   51         unsigned short get_correction(unsigned short adc_val)
+   52         {
+   53  1        unsigned short result = 0;
+   54  1        if (adc_val <= CORRECTION_TABLE_START) result = correction_table[0];
+C166 COMPILER V7.53.0.0, MEASURE_DIST                                                      10/15/2016 15:44:58 PAGE 2   
+
+   55  1        else if (adc_val >= (CORRECTION_TABLE_LENGTH + CORRECTION_TABLE_START-5)) result = correction_table[CORRE
+             -CTION_TABLE_LENGTH-1];
+   56  1        else result = (unsigned short)correction_table[adc_val - CORRECTION_TABLE_START];//offset
+   57  1        
+   58  1        return result;
+   59  1      }
+   60         
+   61         
+   62         
+   63         
+
+
+MODULE INFORMATION:   INITIALIZED  UNINITIALIZED
+  CODE SIZE        =         134     --------
+  NEAR-CONST SIZE  =    --------     --------
+  FAR-CONST SIZE   =    --------     --------
+  HUGE-CONST SIZE  =    --------     --------
+  XHUGE-CONST SIZE =    --------     --------
+  NEAR-DATA SIZE   =           4     --------
+  FAR-DATA SIZE    =         820     --------
+  XHUGE-DATA SIZE  =    --------     --------
+  IDATA-DATA SIZE  =    --------     --------
+  SDATA-DATA SIZE  =    --------     --------
+  BDATA-DATA SIZE  =    --------     --------
+  HUGE-DATA SIZE   =    --------     --------
+  BIT SIZE         =    --------     --------
+  INIT'L SIZE      =         826     --------
+END OF MODULE INFORMATION.
+
+
+C166 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
